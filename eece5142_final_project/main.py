@@ -37,8 +37,9 @@ def main():
     options = vision.PoseLandmarkerOptions(base_options=base_options, running_mode=mp.tasks.vision.RunningMode.IMAGE, output_segmentation_masks=True)
     detector = vision.PoseLandmarker.create_from_options(options)
     for image_file_name in images:
-        image = cv.imread(image_file_name)
-        image = mp.Image(image_format=mp.ImageFormat.SRGB, data=image)
+        image = mp.Image.create_from_file(image_file_name)
+        # image = cv.imread(image_file_name)
+        # image = mp.Image(image_format=mp.ImageFormat.SRGB, data=image)
 
         detection_result = detector.detect(image)
 
