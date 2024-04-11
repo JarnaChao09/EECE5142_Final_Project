@@ -16,6 +16,7 @@ MASK_COLOR = (255, 255, 255) # white
 
 
 def resize_and_show(name, image):
+    print(type(image))
     h, w = image.shape[:2]
     if h < w:
         img = cv.resize(image, (DESIRED_WIDTH, math.floor(h/(w/DESIRED_WIDTH))))
@@ -49,6 +50,17 @@ def main():
         visualized_mask = np.repeat(segmentation_mask[:, :, np.newaxis], 3, axis=2) * 255
         resize_and_show(image_file_name, visualized_mask)
 
+        from skimage.morphology import skeletonize
+        from skimage import data
+        import matplotlib.pyplot as plt
+        from skimage.util import invert
+
+
+        skeleton = skeletonize(visualized_mask)
+
+        cv2_imshow(skeleton)
+
+        
     # base_options = python.BaseOptions(model_asset_path="./model/deeplabv3.tflite")
     # options = vision.ImageSegmenterOptions(base_options=base_options, running_mode=mp.tasks.vision.RunningMode.IMAGE, output_category_mask=True)
 

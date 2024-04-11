@@ -11,6 +11,7 @@ numpy = "^1.26.4"
 opencv-python = "^4.9.0.80"
 matplotlib = "^3.8.4"
 mediapipe = "0.10.9"
+scikit-image = "^0.23.1"
 
 [tool.poetry.group.dev.dependencies]
 black = "^24.3.0"
