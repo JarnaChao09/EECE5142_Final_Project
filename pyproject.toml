@@ -1,0 +1,23 @@
+[tool.poetry]
+name = "eece5142-final-project"
+version = "0.1.0"
+description = ""
+authors = ["Your Name <you@example.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.11"
+numpy = "^1.26.4"
+opencv-python = "^4.9.0.80"
+matplotlib = "^3.8.4"
+mediapipe = "0.10.9"
+
+[tool.poetry.group.dev.dependencies]
+black = "^24.3.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry.scripts]
+main = "eece5142_final_project.main:main"
