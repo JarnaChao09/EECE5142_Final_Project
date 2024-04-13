@@ -77,7 +77,16 @@ def main():
 
         plt.show()
 
+        from plantcv import plantcv as pcv
+        print("over here")
+        skeleton = pcv.morphology.skeletonize(mask=boolean_mask)
+        print("there")
+        branch_points_img = pcv.morphology.find_branch_pts(skel_img=skeleton)
+        print(type(branch_points_img))
 
+        figure = plt.imshow(branch_points_img, cmap="gray")
+        plt.show()
+        print(branch_points_img.sum())
 
         # cv.imshow("skeleton", skeleton)
 
