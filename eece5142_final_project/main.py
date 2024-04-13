@@ -3,6 +3,8 @@ import math
 import numpy as np
 import mediapipe as mp
 import matplotlib.pyplot as plt
+import os
+
 
 from mediapipe.tasks import python
 from mediapipe.tasks.python import vision
@@ -30,20 +32,21 @@ def resize_and_show(name, image, ax):
     # cv.destroyAllWindows() 
 
 def main():
-    images = ["./images/test_posture_seg.jpeg"]
+    images = os.listdir("./images/")
 
-    figure, (ax0, ax1, ax2) = plt.subplots(1, 3)
-    figure.tight_layout()
+    for file_name in images:
 
-    for image in images:
-        img = cv.imread(image)
-        print(image)
-        resize_and_show(image, img, ax0)
+        image_file_name = "./images/" + file_name
+
+        figure, (ax0, ax1, ax2) = plt.subplots(1, 3)
+        figure.tight_layout()
+
+        img = cv.imread(image_file_name)
+        resize_and_show(image_file_name, img, ax0)
     
-    base_options = python.BaseOptions(model_asset_path="./model/pose_landmarker.task", delegate=mp.tasks.BaseOptions.Delegate.CPU)
-    options = vision.PoseLandmarkerOptions(base_options=base_options, running_mode=mp.tasks.vision.RunningMode.IMAGE, output_segmentation_masks=True)
-    detector = vision.PoseLandmarker.create_from_options(options)
-    for image_file_name in images:
+        base_options = python.BaseOptions(model_asset_path="./model/pose_landmarker.task", delegate=mp.tasks.BaseOptions.Delegate.CPU)
+        options = vision.PoseLandmarkerOptions(base_options=base_options, running_mode=mp.tasks.vision.RunningMode.IMAGE, output_segmentation_masks=True)
+        detector = vision.PoseLandmarker.create_from_options(options)
         image = mp.Image.create_from_file(image_file_name)
         # image = cv.imread(image_file_name)
         # image = mp.Image(image_format=mp.ImageFormat.SRGB, data=image)
@@ -51,8 +54,16 @@ def main():
         detection_result = detector.detect(image)
 
         print(detection_result)
+        segmentation_mask = 0 
+        try:
+            segmentation_mask = detection_result.segmentation_masks[0].numpy_view()
+        except:
+            print("No Human Detected")
+            plt.show()
+            continue
 
-        segmentation_mask = detection_result.segmentation_masks[0].numpy_view()
+
+
         print(segmentation_mask.dtype)
         visualized_mask = np.repeat(segmentation_mask[:, :, np.newaxis], 3, axis=2)
         from skimage import color
@@ -61,16 +72,11 @@ def main():
         ax1.imshow(visualized_mask, cmap="gray")
         ax1.set_title("visualized mask")
         # resize_and_show(image_file_name, visualized_mask, ax1)
-        print(np.max(visualized_mask))
-        print(np.min(visualized_mask))
-        print(visualized_mask.dtype)
-
+ 
         from skimage.morphology import skeletonize, thin
         threshold = 0.5
         boolean_mask = visualized_mask >= threshold
         skeleton = skeletonize(boolean_mask)
-
-        # print(skeleton.shape)
 
         ax2.imshow(skeleton, cmap=plt.cm.gray)
         ax2.set_title("skeleton")
@@ -78,13 +84,13 @@ def main():
         plt.show()
 
         from plantcv import plantcv as pcv
-        print("over here")
+
         skeleton = pcv.morphology.skeletonize(mask=boolean_mask)
-        print("there")
         branch_points_img = pcv.morphology.find_branch_pts(skel_img=skeleton)
         print(type(branch_points_img))
 
         figure = plt.imshow(branch_points_img, cmap="gray")
+        plt.title("Branch Junctions")
         plt.show()
         print(branch_points_img.sum())
 
