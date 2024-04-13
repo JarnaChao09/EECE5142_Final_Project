@@ -2,6 +2,7 @@ import cv2 as cv
 import math
 import numpy as np
 import mediapipe as mp
+import matplotlib.pyplot as plt
 
 from mediapipe.tasks import python
 from mediapipe.tasks.python import vision
@@ -15,24 +16,29 @@ BG_COLOR = (192, 192, 192) # gray
 MASK_COLOR = (255, 255, 255) # white
 
 
-def resize_and_show(name, image):
-    print(type(image))
-    h, w = image.shape[:2]
-    if h < w:
-        img = cv.resize(image, (DESIRED_WIDTH, math.floor(h/(w/DESIRED_WIDTH))))
-    else:
-        img = cv.resize(image, (math.floor(w/(h/DESIRED_HEIGHT)), DESIRED_HEIGHT))
-    cv.imshow(name, img)
-    cv.waitKey(0) 
-    cv.destroyAllWindows() 
-
+def resize_and_show(name, image, ax):
+    ax.imshow(image)
+    ax.set_title(name)
+    # print(type(image))
+    # h, w = image.shape[:2]
+    # if h < w:
+    #     img = cv.resize(image, (DESIRED_WIDTH, math.floor(h/(w/DESIRED_WIDTH))))
+    # else:
+    #     img = cv.resize(image, (math.floor(w/(h/DESIRED_HEIGHT)), DESIRED_HEIGHT))
+    # cv.imshow(name, img)
+    # cv.waitKey(0) 
+    # cv.destroyAllWindows() 
 
 def main():
     images = ["./images/test_posture_seg.jpeg"]
+
+    figure, (ax0, ax1, ax2) = plt.subplots(1, 3)
+    figure.tight_layout()
+
     for image in images:
         img = cv.imread(image)
         print(image)
-        resize_and_show(image, img)
+        resize_and_show(image, img, ax0)
     
     base_options = python.BaseOptions(model_asset_path="./model/pose_landmarker.task", delegate=mp.tasks.BaseOptions.Delegate.CPU)
     options = vision.PoseLandmarkerOptions(base_options=base_options, running_mode=mp.tasks.vision.RunningMode.IMAGE, output_segmentation_masks=True)
@@ -47,18 +53,33 @@ def main():
         print(detection_result)
 
         segmentation_mask = detection_result.segmentation_masks[0].numpy_view()
-        visualized_mask = np.repeat(segmentation_mask[:, :, np.newaxis], 3, axis=2) * 255
-        resize_and_show(image_file_name, visualized_mask)
+        print(segmentation_mask.dtype)
+        visualized_mask = np.repeat(segmentation_mask[:, :, np.newaxis], 3, axis=2)
+        from skimage import color
+        visualized_mask = color.rgb2gray(visualized_mask)
 
-        from skimage.morphology import skeletonize
-        from skimage import data
-        import matplotlib.pyplot as plt
-        from skimage.util import invert
+        ax1.imshow(visualized_mask, cmap="gray")
+        ax1.set_title("visualized mask")
+        # resize_and_show(image_file_name, visualized_mask, ax1)
+        print(np.max(visualized_mask))
+        print(np.min(visualized_mask))
+        print(visualized_mask.dtype)
+
+        from skimage.morphology import skeletonize, thin
+        threshold = 0.5
+        boolean_mask = visualized_mask >= threshold
+        skeleton = skeletonize(boolean_mask)
+
+        # print(skeleton.shape)
+
+        ax2.imshow(skeleton, cmap=plt.cm.gray)
+        ax2.set_title("skeleton")
+
+        plt.show()
 
 
-        skeleton = skeletonize(visualized_mask)
 
-        cv2_imshow(skeleton)
+        # cv.imshow("skeleton", skeleton)
 
         
     # base_options = python.BaseOptions(model_asset_path="./model/deeplabv3.tflite")
