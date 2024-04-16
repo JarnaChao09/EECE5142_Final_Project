@@ -70,6 +70,39 @@ def extract_square(image, coordinate):
     # plt.show()
     return mask_image
 
+def get_neighbors(image, coord):
+    row, col = coord
+    neighbors = set()
+    num_rows = np.shape(image)[0]
+    num_cols = np.shape(image)[1]
+
+  # Check top neighbor
+    if row > 0:
+        neighbors.add(image[row - 1, col])
+    # Check bottom neighbor
+    if row < num_rows - 1:
+        neighbors.add(image[row + 1, col])
+    # Check left neighbor
+    if col > 0:
+        neighbors.add(image[row, col - 1])
+    # Check right neighbor
+    if col < num_cols - 1:
+        neighbors.add(image[row, col + 1])
+    # Check top-left neighbor
+    if row > 0 and col > 0:
+        neighbors.add(image[row - 1, col - 1])
+    # Check top-right neighbor
+    if row > 0 and col < num_cols - 1:
+        neighbors.add(image[row - 1, col + 1])
+    # Check bottom-left neighbor
+    if row < num_rows - 1 and col > 0:
+        neighbors.add(image[row + 1, col - 1])
+    # Check bottom-right neighbor
+    if row < num_rows - 1 and col < num_cols - 1:
+        neighbors.add(image[row + 1, col + 1])
+
+    return neighbors
+
 
  
 def main():
@@ -169,15 +202,19 @@ def main():
 
         # Get region properties for each labeled region
         regions = measure.regionprops(labels)
-        regions.pop(0)          # remove background region
+        #regions.pop(0)          # remove background region
         # Extract coordinates for each region
         component_coordinates = []
+        segment_sizes = []
         for region in regions:
+            segment_sizes.append(region.area)
             # Extract coordinates for the current region
             coordinates = [[coord[0], coord[1]] for coord in region.coords] 
             print(type(coordinates[0][0]))
             # Append coordinates to the list
             component_coordinates.append(coordinates)
+
+        print("length of segment_sizes: ", len(segment_sizes))
 
         # Print the shape of coordinates for the first labeled region
         print("Shape of coordinates for the first labeled region:", np.shape(component_coordinates[1]))
@@ -190,25 +227,86 @@ def main():
         print("branches: "+'\n', branch_coordinates)
         print("tips: "+'\n', tip_coordinates)
 
-
+        G = nx.Graph()
         connectivity_mask = labels
-        label_start = num_labels +1
+        tip_label_start = num_labels +1
+        print("tip_label_start: ", tip_label_start)
+        tip_neighbors = []
         for i in range(len(tip_coordinates)):
-            connectivity_mask[tip_coordinates[i][0], tip_coordinates[i][1]] = label_start + i
+            curr_label = tip_label_start + i
+            G.add_node('t{}'.format(curr_label))
+            coord = tip_coordinates[i][0], tip_coordinates[i][1]
+            connectivity_mask[coord] = curr_label
+            neighbors = get_neighbors(connectivity_mask, coord)  
+            neighbors.discard(0)
+            neighbors.discard(curr_label)
+            print("tip neighbors: ", neighbors)
+            tip_neighbors.append(neighbors)
         
+        ##generate branch square masks
         branch_squares = [extract_square(skeleton, n) for n in branch_coordinates]
-        label_start = label_start + len(tip_coordinates)
-
+        branch_label_start = tip_label_start + len(tip_coordinates)
+        print("branch_label_start: ", branch_label_start)
+        ##add branch sqaure masks to connectivity mask, generate coordiantes of branch squares
+        branch_neighbors = []
         for i in range(len(branch_coordinates)):
-            branch_mask = np.clip(branch_squares[i], a_min = None, a_max = 1) * (label_start + i)
+            curr_label = branch_label_start + i                          #label of current branch
+            G.add_node('b{}'.format(curr_label))
+            branch_mask = np.clip(branch_squares[i], a_min = None, a_max = 1) * curr_label
             connectivity_mask = connectivity_mask + branch_mask
+            branch_row_indices, branch_col_indices = np.where(connectivity_mask == curr_label)
+            branch_region = np.column_stack((branch_row_indices, branch_col_indices))
+            ##check for connectivity##
+            neighbors = set()
+            for coord in branch_region:
+                neighbors = neighbors | get_neighbors(connectivity_mask, coord)  
+            neighbors.discard(0)
+            neighbors.discard(curr_label)
+            print("branch neighbors: ", neighbors)
+            branch_neighbors.append(neighbors)
 
+        
         plt.imshow(connectivity_mask)
         plt.title("connectivity mask")
         plt.show()
 
-        branch_squares = np.where(connectivity_mask)
+        for i in range(len(tip_neighbors)):
+            start_set = tip_neighbors[i]
+            for start in start_set:
+                for n in range(len(tip_neighbors)):
+                    end_set = tip_neighbors[n]
+                    for end in end_set:
+                        if(start == end and i != n):
+                            G.add_edge("t{}".format(i+tip_label_start), "t{}".format(n+tip_label_start), weight = segment_sizes[int(start)-1], label = start)
+                for n in range(len(branch_neighbors)):
+                        end_set = branch_neighbors[n]
+                        for end in end_set:
+                            if(start == end):
+                                G.add_edge("t{}".format(i+tip_label_start), "b{}".format(n+branch_label_start), weight = segment_sizes[int(start)-1], label = start)
+        
+        for i in range(len(branch_neighbors)):
+            start_set = branch_neighbors[i]
+            for start in start_set:
+                for n in range(len(branch_neighbors)):
+                    end_set = branch_neighbors[n]
+                    for end in end_set:
+                        if(start == end and i != n):
+                            G.add_edge("b{}".format(i+branch_label_start), "b{}".format(n+branch_label_start), weight = segment_sizes[int(start)-1], label = start)
+            
+
+
+        pos = nx.kamada_kawai_layout(G)
+        nx.draw(G, pos, with_labels=True, node_color='lightblue', font_weight='bold')
+        plt.show()
+        # G.add_node("a")
+        # G.add_node("b")
+
+        # # Add an edge between nodes "a" and "b" with weight 0.6 and label "edge1"
+        # G.add_edge("a", "b", weight=0.6, label="edge1")
+
+
         1/0
+
         segment_image, pcv_segments = pcv.morphology.segment_skeleton(skeleton)     #segments is a list of disjoint segments of size(n,1,2)
         plt.imshow(segment_image)
         plt.show()
@@ -220,9 +318,6 @@ def main():
         nodes = np.vstack((branch_coordinates, tip_coordinates)) #[:, [1, 0]]     #nodes contains the SWAPPED coordinates of tips and branches
                 
         print(nodes)
-
-    
-        graph = nx.Graph()
 
 
         for node in nodes:
