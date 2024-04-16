@@ -17,7 +17,6 @@ DESIRED_WIDTH = 480
 BG_COLOR = (192, 192, 192) # gray
 MASK_COLOR = (255, 255, 255) # white
 
-
 def resize_and_show(name, image, ax):
     ax.imshow(image)
     ax.set_title(name)
@@ -31,6 +30,48 @@ def resize_and_show(name, image, ax):
     # cv.waitKey(0) 
     # cv.destroyAllWindows() 
 
+def adjacent(image, segment, branches, branch_squares):
+
+
+    return adj_nodes        #list of start and ending point of graph
+    # nh = 2
+    # adj_index = []
+    # # start = segment[0]
+    # # end = segment[-1]
+    # ends = find_ends(segment)
+    # start = ends[0]
+    # end = ends[1]
+    # index = 0
+    # for node in nodes:
+    #     if((abs(start[0]-node[0]) <= nh and abs(start[1]-node[1]) <= nh) or (abs(end[0]-node[0]) <= nh and abs(end[1]-node[1]) <= nh)):
+    #         adj_index.append(index)
+    #     index = index + 1
+    # if(len(adj_index) != 2):
+    #     print("error, segment:", start, end, "is adjacent to ", len(adj_index), " nodes")
+    # return adj_index
+
+
+def extract_square(image, coordinate):
+    center_row = coordinate[0]
+    center_col = coordinate[1]
+    print(type(image))
+    print(np.shape(image))
+    height = np.shape(image)[0]
+    width = np.shape(image)[1]
+    start_row = max(center_row - 1, 0)
+    end_row = min(center_row + 1, height - 1)
+    start_col = max(center_col - 1, 0)
+    end_col = min(center_col + 1, width - 1)
+    mask_image = np.zeros((height, width))
+    #square = image[start_row:(end_row+1), start_col:(end_col+1)]
+    mask_image[start_row:(end_row+1), start_col:(end_col+1)] = image[start_row:(end_row+1), start_col:(end_col+1)]
+    
+    # plt.imshow(mask_image)
+    # plt.show()
+    return mask_image
+
+
+ 
 def main():
     images = os.listdir("./images/")
 
@@ -53,7 +94,7 @@ def main():
 
         detection_result = detector.detect(image)
 
-        print(detection_result)
+        # print(detection_result)
         segmentation_mask = 0 
         try:
             segmentation_mask = detection_result.segmentation_masks[0].numpy_view()
@@ -61,7 +102,6 @@ def main():
             print("No Human Detected")
             plt.show()
             continue
-
 
 
         print(segmentation_mask.dtype)
@@ -76,49 +116,145 @@ def main():
         from skimage.morphology import skeletonize, thin
         threshold = 0.5
         boolean_mask = visualized_mask >= threshold
-        skeleton = skeletonize(boolean_mask)
+        cv_skeleton = skeletonize(boolean_mask)
 
-        ax2.imshow(skeleton, cmap=plt.cm.gray)
+        ax2.imshow(cv_skeleton, cmap=plt.cm.gray)
         ax2.set_title("skeleton")
 
         plt.show()
 
         from plantcv import plantcv as pcv
+        from skimage import measure
+        from skimage.morphology import binary_dilation
+        import networkx as nx
+        # pcv.params.debug = "plot"
 
-        skeleton = pcv.morphology.skeletonize(mask=boolean_mask)
-        branch_points_img = pcv.morphology.find_branch_pts(skel_img=skeleton)
-        print(type(branch_points_img))
+        skeleton = pcv.morphology.skeletonize(mask=boolean_mask)                    #plantcv skeleton object         
+        branch_img = pcv.morphology.find_branch_pts(skel_img=skeleton)       #binary mask of branch points
+        tip_img = pcv.morphology.find_tips(skel_img=skeleton)                      #binary mask of tip points
+       
+        pcv.params.line_thickness = 2                                              #increase line width for debug plots
 
-        figure = plt.imshow(branch_points_img, cmap="gray")
-        plt.title("Branch Junctions")
-        plt.show()
-        print(branch_points_img.sum())
+        # figure = plt.imshow(branch_img, cmap="gray")
+        # plt.title("Branch Junctions")
+        # plt.show()
+        print(np.max(skeleton))
+        branch_row_indices, branch_col_indices = np.where(branch_img == 255)
+        tip_row_indices, tip_col_indices = np.where(tip_img == 255)
 
-        # cv.imshow("skeleton", skeleton)
-
+             # Combine row and column indices to get coordinates
+        branch_coordinates = np.column_stack((branch_row_indices, branch_col_indices))
+        tip_coordinates = np.column_stack((tip_row_indices, tip_col_indices))
         
-    # base_options = python.BaseOptions(model_asset_path="./model/deeplabv3.tflite")
-    # options = vision.ImageSegmenterOptions(base_options=base_options, running_mode=mp.tasks.vision.RunningMode.IMAGE, output_category_mask=True)
+        print("skeleton type", type(skeleton[0][0]))
+        cross_kernel = np.array([[255, 255, 255], [255, 255, 255], [255, 255, 255]], dtype = np.uint8)
+        dil_branch_img = branch_img
+        dil_branch_img = cv.dilate(branch_img, cross_kernel)
+        print("dialation min, max: ", np.min(dil_branch_img), np.max(dil_branch_img))
+        #plt.imshow(dil_branch_img)
+        #plt.show()
+        segment_mask = np.clip(skeleton - dil_branch_img - tip_img, a_min = 2, a_max = 255) - 2  ## binary image of 0 and 253 intensities
+        # segment_mask  = segment_mask + branch_img*0.5
 
-    # with vision.ImageSegmenter.create_from_options(options) as segmenter:
-    #     for image_file_name in images:
-    #         image = cv.imread(image_file_name)
-    #         image = mp.Image(image_format=mp.ImageFormat.SRGB, data=image)
+     
+        plt.imshow(segment_mask)
+        plt.title("segment_mask")
+        plt.show()
 
-    #         segmentation_result = segmenter.segment(image)
-    #         category_mask = segmentation_result.category_mask
+        labels, num_labels = measure.label(segment_mask, connectivity=2, return_num = True)  # 8-connectivity
+        print(np.max(labels))
+        print(num_labels)
+        figure = plt.imshow(labels)
+        plt.show()
 
-    #         from collections import Counter
-    #         print(Counter(category_mask.numpy_view().flatten()))
-            
-    #         image_data = image.numpy_view()
-    #         fg_image = np.zeros(image_data.shape, dtype=np.uint8)
-    #         fg_image[:] = MASK_COLOR
-    #         bg_image = np.zeros(image_data.shape, dtype=np.uint8)
-    #         bg_image[:] = BG_COLOR
-            
-    #         condition = np.stack((category_mask.numpy_view(),) * 3, axis=-1) > 10
-    #         output_image = np.where(condition, image.numpy_view(), bg_image)
-            
-    #         print(f"Segmentation mask of {image_file_name}:")
-    #         resize_and_show(image_file_name, output_image)
+        # Get region properties for each labeled region
+        regions = measure.regionprops(labels)
+        regions.pop(0)          # remove background region
+        # Extract coordinates for each region
+        component_coordinates = []
+        for region in regions:
+            # Extract coordinates for the current region
+            coordinates = [[coord[0], coord[1]] for coord in region.coords] 
+            print(type(coordinates[0][0]))
+            # Append coordinates to the list
+            component_coordinates.append(coordinates)
+
+        # Print the shape of coordinates for the first labeled region
+        print("Shape of coordinates for the first labeled region:", np.shape(component_coordinates[1]))
+
+   
+        print("num branches : ", branch_img.sum()/255)
+        print("num tips : ", tip_img.sum()/255)
+        print("branch_shape: ", np.shape(branch_coordinates))
+        print("tip_shape: ", np.shape(tip_coordinates))
+        print("branches: "+'\n', branch_coordinates)
+        print("tips: "+'\n', tip_coordinates)
+
+
+        connectivity_mask = labels
+        label_start = num_labels +1
+        for i in range(len(tip_coordinates)):
+            connectivity_mask[tip_coordinates[i][0], tip_coordinates[i][1]] = label_start + i
+        
+        branch_squares = [extract_square(skeleton, n) for n in branch_coordinates]
+        label_start = label_start + len(tip_coordinates)
+
+        for i in range(len(branch_coordinates)):
+            branch_mask = np.clip(branch_squares[i], a_min = None, a_max = 1) * (label_start + i)
+            connectivity_mask = connectivity_mask + branch_mask
+
+        plt.imshow(connectivity_mask)
+        plt.title("connectivity mask")
+        plt.show()
+
+        branch_squares = np.where(connectivity_mask)
+        1/0
+        segment_image, pcv_segments = pcv.morphology.segment_skeleton(skeleton)     #segments is a list of disjoint segments of size(n,1,2)
+        plt.imshow(segment_image)
+        plt.show()
+        print("num segments", len(pcv_segments))
+        print(np.shape(segment_image))
+        segments = [n.reshape((n.shape[0], n.shape[2])) for n in pcv_segments]      #remove middle dimension fromn segments list
+        print("num segments", len(segments))
+
+        nodes = np.vstack((branch_coordinates, tip_coordinates)) #[:, [1, 0]]     #nodes contains the SWAPPED coordinates of tips and branches
+                
+        print(nodes)
+
+    
+        graph = nx.Graph()
+
+
+        for node in nodes:
+            plt.plot(node[0], node[1], marker = 'o', markersize=1, color = "red")
+        plt.show()
+        
+        # print("nodes\n", nodes)
+
+            # cv.imshow("skeleton", skeleton)
+
+        # base_options = python.BaseOptions(model_asset_path="./model/deeplabv3.tflite")
+        # options = vision.ImageSegmenterOptions(base_options=base_options, running_mode=mp.tasks.vision.RunningMode.IMAGE, output_category_mask=True)
+
+        # with vision.ImageSegmenter.create_from_options(options) as segmenter:
+        #     for image_file_name in images:
+        #         image = cv.imread(image_file_name)
+        #         image = mp.Image(image_format=mp.ImageFormat.SRGB, data=image)
+
+        #         segmentation_result = segmenter.segment(image)
+        #         category_mask = segmentation_result.category_mask
+
+        #         from collections import Counter
+        #         print(Counter(category_mask.numpy_view().flatten()))
+                
+        #         image_data = image.numpy_view()
+        #         fg_image = np.zeros(image_data.shape, dtype=np.uint8)
+        #         fg_image[:] = MASK_COLOR
+        #         bg_image = np.zeros(image_data.shape, dtype=np.uint8)
+        #         bg_image[:] = BG_COLOR
+                
+        #         condition = np.stack((category_mask.numpy_view(),) * 3, axis=-1) > 10
+        #         output_image = np.where(condition, image.numpy_view(), bg_image)
+                
+        #         print(f"Segmentation mask of {image_file_name}:")
+        #         resize_and_show(image_file_name, output_image)
