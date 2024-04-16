@@ -14,6 +14,7 @@ mediapipe = "0.10.9"
 scikit-image = "^0.23.1"
 plantcv = "^4.2.1"
 networkx = "^3.3"
+regex = "^2023.12.25"
 
 [tool.poetry.group.dev.dependencies]
 black = "^24.3.0"

@@ -50,7 +50,6 @@ def adjacent(image, segment, branches, branch_squares):
     #     print("error, segment:", start, end, "is adjacent to ", len(adj_index), " nodes")
     # return adj_index
 
-
 def extract_square(image, coordinate):
     center_row = coordinate[0]
     center_col = coordinate[1]
@@ -103,8 +102,49 @@ def get_neighbors(image, coord):
 
     return neighbors
 
+def longest_path(G, root):
+    if(G.adj[root] == None):
+        return(root)
 
- 
+    max_path = None
+    max_length = 0
+    for adjacent in G.adj[root]:
+        edge = G.get_edge_data(root, adjacent)
+        length = edge["weight"]
+        new_path, new_length = DFS(G, [root, adjacent], length)
+        if(new_length > max_length):
+            print("here")
+            max_length = new_length
+            max_path = list(new_path)
+    return max_path
+
+def DFS(G, path, length):
+    root = path[-1]
+    adjacent_nodes = G.adj[root]
+    print("path: ", path, "     adjacent:", adjacent_nodes)
+    if(all(node_id in path for node_id in list(adjacent_nodes.keys()))):            #check if adjacency list of the previous node is completly contained within path
+        return(path, length)
+    max_length = 0
+    max_path = None
+    for adjacent in adjacent_nodes:
+        if(adjacent in path):
+            continue
+        edge = G.get_edge_data(root, adjacent)
+        new_path = list(path)
+        new_path.append(adjacent)
+        print("new_path", new_path)
+        new_length = length + edge["weight"]
+        print(new_length)
+        new_path, new_length = DFS(G, new_path, new_length)
+        print("Next Length", new_length)
+        if(new_length > max_length):
+            print("There")
+            max_length = new_length
+            max_path = new_path
+            
+    return max_path, max_length
+        
+
 def main():
     images = os.listdir("./images/")
 
@@ -162,7 +202,29 @@ def main():
         import networkx as nx
         # pcv.params.debug = "plot"
 
-        skeleton = pcv.morphology.skeletonize(mask=boolean_mask)                    #plantcv skeleton object         
+
+        ##extract largest connected component from image##
+        single_component = boolean_mask * 0
+        labels, num_labels = measure.label(boolean_mask, connectivity=2, return_num = True)  # 8-connectivity
+        regions = measure.regionprops(labels)
+        print("num_regions", len(regions))
+        reg_ind = [i+1 for i in range(len(regions))]
+        print(num_labels)
+        component_sizes = [region.area for region in regions]
+        component_sizes, reg_ind = (list(t) for t in zip(*sorted(zip(component_sizes, reg_ind))))
+        print(component_sizes)
+        print("largest component: ", reg_ind[-1])
+        comp_x, comp_y = np.where(labels == reg_ind[-1])
+        component = np.column_stack((comp_x, comp_y))
+        print(component)
+        for pixel in component:
+            single_component[pixel[0], pixel[1]] = 1
+        plt.imshow(single_component)
+        plt.title("single_component")
+        plt.show()
+
+
+        skeleton = pcv.morphology.skeletonize(mask=single_component)                    #plantcv skeleton object         
         branch_img = pcv.morphology.find_branch_pts(skel_img=skeleton)       #binary mask of branch points
         tip_img = pcv.morphology.find_tips(skel_img=skeleton)                      #binary mask of tip points
        
@@ -298,14 +360,31 @@ def main():
         pos = nx.kamada_kawai_layout(G)
         nx.draw(G, pos, with_labels=True, node_color='lightblue', font_weight='bold')
         plt.show()
-        # G.add_node("a")
-        # G.add_node("b")
 
-        # # Add an edge between nodes "a" and "b" with weight 0.6 and label "edge1"
-        # G.add_edge("a", "b", weight=0.6, label="edge1")
+        root = next(iter(G.nodes())) 
+        w = longest_path(G, root)[-1]
+        path = longest_path(G, w)
 
-
-        1/0
+        spine_mask = skeleton/2
+        prev = None
+        for point in path:
+            if('t' in point):
+                label = int(point[1:])
+                tip = tip_coordinates[label - tip_label_start]
+                spine_mask[tip[0], tip[1]] = 255
+            if('b' in point):
+                label = int(point[1:])
+                branch = branch_coordinates[label - branch_label_start]
+                spine_mask[branch[0], branch[1]] = 255
+            if(prev != None):
+                edge = G.get_edge_data(prev, point)
+                segment_label = int(edge["label"])
+                for pixel in component_coordinates[segment_label-1]:
+                    spine_mask[pixel[0], pixel[1]] = 255
+            prev = point
+        plt.imshow(spine_mask)
+        plt.show()
+        continue
 
         segment_image, pcv_segments = pcv.morphology.segment_skeleton(skeleton)     #segments is a list of disjoint segments of size(n,1,2)
         plt.imshow(segment_image)
