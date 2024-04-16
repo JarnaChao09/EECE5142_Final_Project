@@ -99,7 +99,9 @@ def get_neighbors(image, coord):
     # Check bottom-right neighbor
     if row < num_rows - 1 and col < num_cols - 1:
         neighbors.add(image[row + 1, col + 1])
-
+        if(neighbors == set()):
+            print("error, no neighbor")
+            input()
     return neighbors
 
 def longest_path(G, root):
@@ -142,6 +144,36 @@ def DFS(G, path, length):
             max_path = new_path
             
     return max_path, max_length
+
+def any_path(G, root, target):
+    if(G.adj[root] == None):
+        return(root)
+
+    for adjacent in G.adj[root]:
+        edge = G.get_edge_data(root, adjacent)
+        new_path = path_rec(G, [root, adjacent], target)
+        if(new_path != None and target in new_path):
+            return(new_path)
+    return None
+
+def path_rec(G, path, target):
+    root = path[-1]
+    adjacent_nodes = G.adj[root]
+    print("path: ", path, "     adjacent:", adjacent_nodes)
+    if(all(node_id in path for node_id in list(adjacent_nodes.keys()))):            #check if adjacency list of the previous node is completly contained within path
+        return(path)
+    max_path = None
+    for adjacent in adjacent_nodes:
+        if(adjacent in path):
+            continue
+        new_path = list(path)
+        new_path.append(adjacent)
+        print("new_path", new_path)
+        new_path = path_rec(G, new_path, target)
+        if(new_path != None and target in new_path):    
+            return(new_path)
+            
+    return None
         
 
 def main():
@@ -244,16 +276,17 @@ def main():
         plt.title("filled_component")
         plt.show()
 
-        skeleton = pcv.morphology.skeletonize(mask=hole_mask)                    #plantcv skeleton object         
+        skeleton = pcv.morphology.skeletonize(mask=hole_mask)                    #plantcv skeleton object     
+        plt.imshow(skeleton)
+        plt.title("skeleton")
+        plt.show()
+
         branch_img = pcv.morphology.find_branch_pts(skel_img=skeleton)       #binary mask of branch points
         tip_img = pcv.morphology.find_tips(skel_img=skeleton)                      #binary mask of tip points
        
         pcv.params.line_thickness = 2                                              #increase line width for debug plots
 
-        # figure = plt.imshow(branch_img, cmap="gray")
-        # plt.title("Branch Junctions")
-        # plt.show()
-        print(np.max(skeleton))
+
         branch_row_indices, branch_col_indices = np.where(branch_img == 255)
         tip_row_indices, tip_col_indices = np.where(tip_img == 255)
 
@@ -298,10 +331,7 @@ def main():
 
         print("length of segment_sizes: ", len(segment_sizes))
 
-        # Print the shape of coordinates for the first labeled region
-        print("Shape of coordinates for the first labeled region:", np.shape(component_coordinates[1]))
-
-   
+    
         print("num branches : ", branch_img.sum()/255)
         print("num tips : ", tip_img.sum()/255)
         print("branch_shape: ", np.shape(branch_coordinates))
@@ -377,14 +407,30 @@ def main():
             
 
 
-        pos = nx.kamada_kawai_layout(G)
-        nx.draw(G, pos, with_labels=True, node_color='lightblue', font_weight='bold')
+        # pos = nx.kamada_kawai_layout(G)
+        # nx.draw(G, pos, with_labels=True, node_color='lightblue', font_weight='bold')
+        nx.draw(G, with_labels=True, node_color='lightblue', font_weight='bold')
         plt.show()
-    
-        root = next(iter(G.nodes())) 
+
+        root = next(iter(G.nodes()))
+        root = "t{}".format(tip_label_start) 
         w = longest_path(G, root)[-1]
         path = longest_path(G, w)
 
+        highest_ind = 0
+        lowest_ind = 0
+        for i in range(len(tip_coordinates)):
+            print(tip_coordinates[i][0], ", ",tip_coordinates[highest_ind][0])
+            if(tip_coordinates[i][0] > tip_coordinates[highest_ind][0]):
+                highest_ind = i
+            if(tip_coordinates[i][0] < tip_coordinates[highest_ind][0]):
+                lowest_ind = i
+
+        highest_tip = "t{}".format(highest_ind+tip_label_start)
+        lowest_tip = "t{}".format(lowest_ind+tip_label_start)
+        path = []
+        path = any_path(G, highest_tip, lowest_tip)
+        print("final path: ", path)
         spine_mask = skeleton/2
         prev = None
         for point in path:
@@ -403,26 +449,10 @@ def main():
                     spine_mask[pixel[0], pixel[1]] = 255
             prev = point
         plt.imshow(spine_mask)
+        title("spine mask")
         plt.show()
-        continue
 
-        segment_image, pcv_segments = pcv.morphology.segment_skeleton(skeleton)     #segments is a list of disjoint segments of size(n,1,2)
-        plt.imshow(segment_image)
-        plt.show()
-        print("num segments", len(pcv_segments))
-        print(np.shape(segment_image))
-        segments = [n.reshape((n.shape[0], n.shape[2])) for n in pcv_segments]      #remove middle dimension fromn segments list
-        print("num segments", len(segments))
-
-        nodes = np.vstack((branch_coordinates, tip_coordinates)) #[:, [1, 0]]     #nodes contains the SWAPPED coordinates of tips and branches
-                
-        print(nodes)
-
-
-        for node in nodes:
-            plt.plot(node[0], node[1], marker = 'o', markersize=1, color = "red")
-        plt.show()
-        
+    
         # print("nodes\n", nodes)
 
             # cv.imshow("skeleton", skeleton)
