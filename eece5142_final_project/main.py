@@ -71,38 +71,53 @@ def extract_square(image, coordinate):
 
 def get_neighbors(image, coord):
     row, col = coord
-    neighbors = set()
+    intensities = set()
+    neighbors = []
     num_rows = np.shape(image)[0]
     num_cols = np.shape(image)[1]
 
   # Check top neighbor
     if row > 0:
-        neighbors.add(image[row - 1, col])
+        intensities.add(image[row - 1, col])
+        if(image[row, col] == image[row - 1, col]):
+            neighbors.append([row - 1, col])
     # Check bottom neighbor
     if row < num_rows - 1:
-        neighbors.add(image[row + 1, col])
+        intensities.add(image[row + 1, col])
+        if(image[row, col] == image[row + 1, col]):
+            neighbors.append([row + 1, col])
     # Check left neighbor
     if col > 0:
-        neighbors.add(image[row, col - 1])
+        intensities.add(image[row, col - 1])
+        if(image[row, col] == image[row, col - 1]):
+            neighbors.append([row, col - 1])
     # Check right neighbor
     if col < num_cols - 1:
-        neighbors.add(image[row, col + 1])
+        intensities.add(image[row, col + 1])
+        if(image[row, col] == image[row, col + 1]):
+            neighbors.append([row, col + 1])
     # Check top-left neighbor
     if row > 0 and col > 0:
-        neighbors.add(image[row - 1, col - 1])
+        intensities.add(image[row - 1, col - 1])
+        if(image[row, col] == image[row - 1, col - 1]):
+            neighbors.append([row - 1, col - 1])
     # Check top-right neighbor
     if row > 0 and col < num_cols - 1:
-        neighbors.add(image[row - 1, col + 1])
+        intensities.add(image[row - 1, col + 1])
+        if(image[row, col] == image[row - 1, col + 1]):
+            neighbors.append([row - 1, col + 1])
     # Check bottom-left neighbor
     if row < num_rows - 1 and col > 0:
-        neighbors.add(image[row + 1, col - 1])
+        intensities.add(image[row + 1, col - 1])
+        if(image[row, col] == image[row + 1, col - 1]):
+            neighbors.append([row + 1, col - 1])
     # Check bottom-right neighbor
     if row < num_rows - 1 and col < num_cols - 1:
-        neighbors.add(image[row + 1, col + 1])
-        if(neighbors == set()):
-            print("error, no neighbor")
-            input()
-    return neighbors
+        intensities.add(image[row + 1, col + 1])
+        if(image[row, col] == image[row + 1, col + 1]):
+            neighbors.append([row + 1, col + 1])
+
+    return neighbors, intensities
 
 def longest_path(G, root):
     if(G.adj[root] == None):
@@ -253,7 +268,7 @@ def main():
             single_component[pixel[0], pixel[1]] = 1
         plt.imshow(single_component)
         plt.title("single_component")
-        plt.show()
+        # plt.show()
         
         ##remove holes by flooding region that is not connected to [0,0]##
         labels, num_labels = measure.label(single_component + 1, connectivity=2, return_num = True)
@@ -274,18 +289,18 @@ def main():
 
         plt.imshow(hole_mask)
         plt.title("filled_component")
-        plt.show()
+        #plt.show()
 
         skeleton = pcv.morphology.skeletonize(mask=hole_mask)                    #plantcv skeleton object     
         plt.imshow(skeleton)
         plt.title("skeleton")
-        plt.show()
+        #plt.show()
 
         branch_img = pcv.morphology.find_branch_pts(skel_img=skeleton)       #binary mask of branch points
         tip_img = pcv.morphology.find_tips(skel_img=skeleton)                      #binary mask of tip points
        
+ 
         pcv.params.line_thickness = 2                                              #increase line width for debug plots
-
 
         branch_row_indices, branch_col_indices = np.where(branch_img == 255)
         tip_row_indices, tip_col_indices = np.where(tip_img == 255)
@@ -293,8 +308,27 @@ def main():
              # Combine row and column indices to get coordinates
         branch_coordinates = np.column_stack((branch_row_indices, branch_col_indices))
         tip_coordinates = np.column_stack((tip_row_indices, tip_col_indices))
+        for i in range(len(tip_coordinates)):
+            neighbors = get_neighbors(skeleton, tip_coordinates[i])[0]
+            if(len(neighbors) != 1):
+                print("removing tip with {} neighbors".format(len(neighbors)))
+
+        i=0
+        segment_image_add = []            ##removed branch points are added to semgmented image
+        while(i < len(branch_coordinates)):
+            neighbors = get_neighbors(skeleton, branch_coordinates[i])[0]
+            if(len(neighbors) <= 2):
+                print("removing branch with {} neighbors".format(len(neighbors)))
+                branch_coordinates = branch_coordinates[:i] + branch_coordinates[i+1:]
+            for branch in branch_coordinates:
+                for neighbor in neighbors:
+                    if(neighbor[0] == branch[0] and neighbor[1] == branch[1]):
+                        print("removing branch with {} neighbors".format(len(neighbors)))
+                        branch_coordinates = np.delete(branch_coordinates, i, 0)
+                        print("new_branch coordnates:\n", branch_coordinates, '\n', '\n')
+                        segment_image_add.append([branch_coordiantes[i], i])
+            i = i + 1
         
-        print("skeleton type", type(skeleton[0][0]))
         cross_kernel = np.array([[255, 255, 255], [255, 255, 255], [255, 255, 255]], dtype = np.uint8)
         dil_branch_img = branch_img
         dil_branch_img = cv.dilate(branch_img, cross_kernel)
@@ -307,13 +341,13 @@ def main():
      
         plt.imshow(segment_mask)
         plt.title("segment_mask")
-        plt.show()
+        #plt.show()
 
         labels, num_labels = measure.label(segment_mask, connectivity=2, return_num = True)  # 8-connectivity
         print(np.max(labels))
         print(num_labels)
         figure = plt.imshow(labels)
-        plt.show()
+        #plt.show()
 
         # Get region properties for each labeled region
         regions = measure.regionprops(labels)
@@ -325,7 +359,6 @@ def main():
             segment_sizes.append(region.area)
             # Extract coordinates for the current region
             coordinates = [[coord[0], coord[1]] for coord in region.coords] 
-            print(type(coordinates[0][0]))
             # Append coordinates to the list
             component_coordinates.append(coordinates)
 
@@ -349,7 +382,7 @@ def main():
             G.add_node('t{}'.format(curr_label))
             coord = tip_coordinates[i][0], tip_coordinates[i][1]
             connectivity_mask[coord] = curr_label
-            neighbors = get_neighbors(connectivity_mask, coord)  
+            pixel_points, neighbors = get_neighbors(connectivity_mask, coord)  
             neighbors.discard(0)
             neighbors.discard(curr_label)
             print("tip neighbors: ", neighbors)
@@ -371,16 +404,15 @@ def main():
             ##check for connectivity##
             neighbors = set()
             for coord in branch_region:
-                neighbors = neighbors | get_neighbors(connectivity_mask, coord)  
+                neighbors = neighbors | get_neighbors(connectivity_mask, coord)[1]  
             neighbors.discard(0)
             neighbors.discard(curr_label)
             print("branch neighbors: ", neighbors)
             branch_neighbors.append(neighbors)
 
-        
         plt.imshow(connectivity_mask)
         plt.title("connectivity mask")
-        plt.show()
+        #plt.show()
 
         for i in range(len(tip_neighbors)):
             start_set = tip_neighbors[i]
@@ -410,7 +442,7 @@ def main():
         # pos = nx.kamada_kawai_layout(G)
         # nx.draw(G, pos, with_labels=True, node_color='lightblue', font_weight='bold')
         nx.draw(G, with_labels=True, node_color='lightblue', font_weight='bold')
-        plt.show()
+        #plt.show()
 
         root = next(iter(G.nodes()))
         root = "t{}".format(tip_label_start) 
@@ -449,7 +481,7 @@ def main():
                     spine_mask[pixel[0], pixel[1]] = 255
             prev = point
         plt.imshow(spine_mask)
-        title("spine mask")
+        plt.title("spine mask")
         plt.show()
 
     
