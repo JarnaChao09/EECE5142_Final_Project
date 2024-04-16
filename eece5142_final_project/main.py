@@ -137,8 +137,7 @@ def DFS(G, path, length):
         print(new_length)
         new_path, new_length = DFS(G, new_path, new_length)
         print("Next Length", new_length)
-        if(new_length > max_length):
-            print("There")
+        if(new_length > max_length):    
             max_length = new_length
             max_path = new_path
             
@@ -199,6 +198,7 @@ def main():
         from plantcv import plantcv as pcv
         from skimage import measure
         from skimage.morphology import binary_dilation
+        import skimage
         import networkx as nx
         # pcv.params.debug = "plot"
 
@@ -222,9 +222,29 @@ def main():
         plt.imshow(single_component)
         plt.title("single_component")
         plt.show()
+        
+        ##remove holes by flooding region that is not connected to [0,0]##
+        labels, num_labels = measure.label(single_component + 1, connectivity=2, return_num = True)
+        regions = measure.regionprops(labels)
+        component_coordinates = []
+        background = None
+        for region in regions:
+            coordinates = [[coord[0], coord[1]] for coord in region.coords] 
+            # Append coordinates to the list
+            component_coordinates.append(coordinates)
+        component = []
+        for component in component_coordinates:
+            if([0,0] in component):
+                background = component 
+        hole_mask = boolean_mask*0+1
+        for pixel in background:
+            hole_mask[pixel[0], pixel[1]] = 0
 
+        plt.imshow(hole_mask)
+        plt.title("filled_component")
+        plt.show()
 
-        skeleton = pcv.morphology.skeletonize(mask=single_component)                    #plantcv skeleton object         
+        skeleton = pcv.morphology.skeletonize(mask=hole_mask)                    #plantcv skeleton object         
         branch_img = pcv.morphology.find_branch_pts(skel_img=skeleton)       #binary mask of branch points
         tip_img = pcv.morphology.find_tips(skel_img=skeleton)                      #binary mask of tip points
        
@@ -360,7 +380,7 @@ def main():
         pos = nx.kamada_kawai_layout(G)
         nx.draw(G, pos, with_labels=True, node_color='lightblue', font_weight='bold')
         plt.show()
-
+    
         root = next(iter(G.nodes())) 
         w = longest_path(G, root)[-1]
         path = longest_path(G, w)
