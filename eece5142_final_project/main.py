@@ -53,8 +53,8 @@ def adjacent(image, segment, branches, branch_squares):
 def extract_square(image, coordinate):
     center_row = coordinate[0]
     center_col = coordinate[1]
-    print(type(image))
-    print(np.shape(image))
+    # print(type(image))
+    # print(np.shape(image))
     height = np.shape(image)[0]
     width = np.shape(image)[1]
     start_row = max(center_row - 1, 0)
@@ -130,7 +130,7 @@ def longest_path(G, root):
         length = edge["weight"]
         new_path, new_length = DFS(G, [root, adjacent], length)
         if(new_length > max_length):
-            print("here")
+            # print("here")
             max_length = new_length
             max_path = list(new_path)
     return max_path
@@ -138,7 +138,7 @@ def longest_path(G, root):
 def DFS(G, path, length):
     root = path[-1]
     adjacent_nodes = G.adj[root]
-    print("path: ", path, "     adjacent:", adjacent_nodes)
+    # print("path: ", path, "     adjacent:", adjacent_nodes)
     if(all(node_id in path for node_id in list(adjacent_nodes.keys()))):            #check if adjacency list of the previous node is completly contained within path
         return(path, length)
     max_length = 0
@@ -149,11 +149,11 @@ def DFS(G, path, length):
         edge = G.get_edge_data(root, adjacent)
         new_path = list(path)
         new_path.append(adjacent)
-        print("new_path", new_path)
+        # print("new_path", new_path)
         new_length = length + edge["weight"]
-        print(new_length)
+        # print(new_length)
         new_path, new_length = DFS(G, new_path, new_length)
-        print("Next Length", new_length)
+        # print("Next Length", new_length)
         if(new_length > max_length):    
             max_length = new_length
             max_path = new_path
@@ -174,7 +174,7 @@ def any_path(G, root, target):
 def path_rec(G, path, target):
     root = path[-1]
     adjacent_nodes = G.adj[root]
-    print("path: ", path, "     adjacent:", adjacent_nodes)
+    # print("path: ", path, "     adjacent:", adjacent_nodes)
     if(all(node_id in path for node_id in list(adjacent_nodes.keys()))):            #check if adjacency list of the previous node is completly contained within path
         return(path)
     max_path = None
@@ -183,16 +183,29 @@ def path_rec(G, path, target):
             continue
         new_path = list(path)
         new_path.append(adjacent)
-        print("new_path", new_path)
+        # print("new_path", new_path)
         new_path = path_rec(G, new_path, target)
         if(new_path != None and target in new_path):    
             return(new_path)
             
     return None
-        
+
+
+def flatten_point(point, shape):
+    s0, s1 = shape
+
+    p_0, p_1 = point
+
+    p0, p1 = p_0 / (s0 * s1), p_1 / (s0 * s1)
+
+    return p0 * p0 + p1 * p1
+
 
 def main():
     images = os.listdir("./images/")
+
+    matrix = None
+    training_labels = []
 
     for file_name in images:
 
@@ -202,7 +215,7 @@ def main():
         figure.tight_layout()
 
         img = cv.imread(image_file_name)
-        resize_and_show(image_file_name, img, ax0)
+        # resize_and_show(image_file_name, img, ax0)
     
         base_options = python.BaseOptions(model_asset_path="./model/pose_landmarker.task", delegate=mp.tasks.BaseOptions.Delegate.CPU)
         options = vision.PoseLandmarkerOptions(base_options=base_options, running_mode=mp.tasks.vision.RunningMode.IMAGE, output_segmentation_masks=True)
@@ -218,12 +231,12 @@ def main():
         try:
             segmentation_mask = detection_result.segmentation_masks[0].numpy_view()
         except:
-            print("No Human Detected")
-            plt.show()
+            print(f"No Human Detected {file_name}")
+            # plt.show()
             continue
 
 
-        print(segmentation_mask.dtype)
+        # print(segmentation_mask.dtype)
         visualized_mask = np.repeat(segmentation_mask[:, :, np.newaxis], 3, axis=2)
         from skimage import color
         visualized_mask = color.rgb2gray(visualized_mask)
@@ -240,7 +253,7 @@ def main():
         ax2.imshow(cv_skeleton, cmap=plt.cm.gray)
         ax2.set_title("skeleton")
 
-        plt.show()
+        # plt.show()
 
         from plantcv import plantcv as pcv
         from skimage import measure
@@ -254,16 +267,16 @@ def main():
         single_component = boolean_mask * 0
         labels, num_labels = measure.label(boolean_mask, connectivity=2, return_num = True)  # 8-connectivity
         regions = measure.regionprops(labels)
-        print("num_regions", len(regions))
+        # print("num_regions", len(regions))
         reg_ind = [i+1 for i in range(len(regions))]
-        print(num_labels)
+        # print(num_labels)
         component_sizes = [region.area for region in regions]
         component_sizes, reg_ind = (list(t) for t in zip(*sorted(zip(component_sizes, reg_ind))))
-        print(component_sizes)
-        print("largest component: ", reg_ind[-1])
+        # print(component_sizes)
+        # print("largest component: ", reg_ind[-1])
         comp_x, comp_y = np.where(labels == reg_ind[-1])
         component = np.column_stack((comp_x, comp_y))
-        print(component)
+        # print(component)
         for pixel in component:
             single_component[pixel[0], pixel[1]] = 1
         plt.imshow(single_component)
@@ -311,28 +324,29 @@ def main():
         for i in range(len(tip_coordinates)):
             neighbors = get_neighbors(skeleton, tip_coordinates[i])[0]
             if(len(neighbors) != 1):
-                print("removing tip with {} neighbors".format(len(neighbors)))
+                ...
+                # print("removing tip with {} neighbors".format(len(neighbors)))
 
         i=0
         segment_image_add = []            ##removed branch points are added to semgmented image
         while(i < len(branch_coordinates)):
             neighbors = get_neighbors(skeleton, branch_coordinates[i])[0]
             if(len(neighbors) <= 2):
-                print("removing branch with {} neighbors".format(len(neighbors)))
+                # print("removing branch with {} neighbors".format(len(neighbors)))
                 branch_coordinates = branch_coordinates[:i] + branch_coordinates[i+1:]
             for branch in branch_coordinates:
                 for neighbor in neighbors:
                     if(neighbor[0] == branch[0] and neighbor[1] == branch[1]):
-                        print("removing branch with {} neighbors".format(len(neighbors)))
+                        # print("removing branch with {} neighbors".format(len(neighbors)))
                         branch_coordinates = np.delete(branch_coordinates, i, 0)
-                        print("new_branch coordnates:\n", branch_coordinates, '\n', '\n')
-                        segment_image_add.append([branch_coordiantes[i], i])
+                        # print("new_branch coordnates:\n", branch_coordinates, '\n', '\n')
+                        segment_image_add.append([branch_coordinates[i], i])
             i = i + 1
         
         cross_kernel = np.array([[255, 255, 255], [255, 255, 255], [255, 255, 255]], dtype = np.uint8)
         dil_branch_img = branch_img
         dil_branch_img = cv.dilate(branch_img, cross_kernel)
-        print("dialation min, max: ", np.min(dil_branch_img), np.max(dil_branch_img))
+        # print("dialation min, max: ", np.min(dil_branch_img), np.max(dil_branch_img))
         #plt.imshow(dil_branch_img)
         #plt.show()
         segment_mask = np.clip(skeleton - dil_branch_img - tip_img, a_min = 2, a_max = 255) - 2  ## binary image of 0 and 253 intensities
@@ -344,8 +358,8 @@ def main():
         #plt.show()
 
         labels, num_labels = measure.label(segment_mask, connectivity=2, return_num = True)  # 8-connectivity
-        print(np.max(labels))
-        print(num_labels)
+        # print(np.max(labels))
+        # print(num_labels)
         figure = plt.imshow(labels)
         #plt.show()
 
@@ -362,20 +376,20 @@ def main():
             # Append coordinates to the list
             component_coordinates.append(coordinates)
 
-        print("length of segment_sizes: ", len(segment_sizes))
+        # print("length of segment_sizes: ", len(segment_sizes))
 
     
-        print("num branches : ", branch_img.sum()/255)
-        print("num tips : ", tip_img.sum()/255)
-        print("branch_shape: ", np.shape(branch_coordinates))
-        print("tip_shape: ", np.shape(tip_coordinates))
-        print("branches: "+'\n', branch_coordinates)
-        print("tips: "+'\n', tip_coordinates)
+        # print("num branches : ", branch_img.sum()/255)
+        # print("num tips : ", tip_img.sum()/255)
+        # print("branch_shape: ", np.shape(branch_coordinates))
+        # print("tip_shape: ", np.shape(tip_coordinates))
+        # print("branches: "+'\n', branch_coordinates)
+        # print("tips: "+'\n', tip_coordinates)
 
         G = nx.Graph()
         connectivity_mask = labels
         tip_label_start = num_labels +1
-        print("tip_label_start: ", tip_label_start)
+        # print("tip_label_start: ", tip_label_start)
         tip_neighbors = []
         for i in range(len(tip_coordinates)):
             curr_label = tip_label_start + i
@@ -385,13 +399,13 @@ def main():
             pixel_points, neighbors = get_neighbors(connectivity_mask, coord)  
             neighbors.discard(0)
             neighbors.discard(curr_label)
-            print("tip neighbors: ", neighbors)
+            # print("tip neighbors: ", neighbors)
             tip_neighbors.append(neighbors)
         
         ##generate branch square masks
         branch_squares = [extract_square(skeleton, n) for n in branch_coordinates]
         branch_label_start = tip_label_start + len(tip_coordinates)
-        print("branch_label_start: ", branch_label_start)
+        # print("branch_label_start: ", branch_label_start)
         ##add branch sqaure masks to connectivity mask, generate coordiantes of branch squares
         branch_neighbors = []
         for i in range(len(branch_coordinates)):
@@ -407,7 +421,7 @@ def main():
                 neighbors = neighbors | get_neighbors(connectivity_mask, coord)[1]  
             neighbors.discard(0)
             neighbors.discard(curr_label)
-            print("branch neighbors: ", neighbors)
+            # print("branch neighbors: ", neighbors)
             branch_neighbors.append(neighbors)
 
         plt.imshow(connectivity_mask)
@@ -452,7 +466,7 @@ def main():
         highest_ind = 0
         lowest_ind = 0
         for i in range(len(tip_coordinates)):
-            print(tip_coordinates[i][0], ", ",tip_coordinates[highest_ind][0])
+            # print(tip_coordinates[i][0], ", ",tip_coordinates[highest_ind][0])
             if(tip_coordinates[i][0] > tip_coordinates[highest_ind][0]):
                 highest_ind = i
             if(tip_coordinates[i][0] < tip_coordinates[highest_ind][0]):
@@ -462,27 +476,80 @@ def main():
         lowest_tip = "t{}".format(lowest_ind+tip_label_start)
         path = []
         path = any_path(G, highest_tip, lowest_tip)
-        print("final path: ", path)
+        # print("final path: ", path)
         spine_mask = skeleton/2
         prev = None
+        spine_points = []
+        if not path:
+            print(f"no path found for {file_name}")
+            continue
         for point in path:
             if('t' in point):
                 label = int(point[1:])
                 tip = tip_coordinates[label - tip_label_start]
                 spine_mask[tip[0], tip[1]] = 255
+                spine_points.append(tip)
             if('b' in point):
                 label = int(point[1:])
                 branch = branch_coordinates[label - branch_label_start]
                 spine_mask[branch[0], branch[1]] = 255
+                spine_points.append(branch)
             if(prev != None):
                 edge = G.get_edge_data(prev, point)
                 segment_label = int(edge["label"])
                 for pixel in component_coordinates[segment_label-1]:
                     spine_mask[pixel[0], pixel[1]] = 255
+                    spine_points.append(pixel)
             prev = point
         plt.imshow(spine_mask)
         plt.title("spine mask")
-        plt.show()
+
+        index_diff = round((len(spine_points) - 1) / 20)
+
+        spine_points = sorted(spine_points, key=lambda x: x[0] * x[0] + x[1] * x[1])
+
+        sampled = [flatten_point(spine_points[i], spine_mask.shape) for i in range(0, len(spine_points), index_diff)][:20]
+
+        print(f"num points {file_name} = {len(spine_points)}, {len(sampled)}")
+
+        s = np.array(sampled)
+
+        if matrix is None:
+            matrix = s
+        else:
+            matrix = np.vstack((matrix, s))
+        training_labels.append("good" if "good" in file_name else "bad")
+    
+    from sklearn.decomposition import PCA
+    from sklearn.model_selection import train_test_split
+    from sklearn.neighbors import KNeighborsClassifier
+
+    pca = PCA(n_components=5)
+
+    matrix_train, matrix_test, training_labels_train, training_labels_test = train_test_split(matrix, training_labels, test_size=0.25, random_state=42)
+
+    training_data = pca.fit_transform(matrix_train)
+
+    testing_data = pca.transform(matrix_test)
+
+    print(pca.explained_variance_ratio_)
+
+    neigh = KNeighborsClassifier(n_neighbors=3)
+    neigh.fit(training_data, training_labels_train)
+
+    test_predictions = neigh.predict(testing_data)
+
+    correct = 0
+    incorrect = 0
+    for pred, labeled in zip(test_predictions, training_labels_test):
+        if pred == labeled:
+            correct += 1
+        else:
+            incorrect += 1
+
+    print(f"{correct} to {incorrect} {correct / (correct + incorrect)}")
+    
+        # plt.show()
 
     
         # print("nodes\n", nodes)
